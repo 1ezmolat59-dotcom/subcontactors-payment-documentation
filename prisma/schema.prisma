@@ -1,13 +1,297 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum Role {
+  CONTRACTOR
+  SUBCONTRACTOR
+  ADMIN
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  PAID
+  PARTIALLY_PAID
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum DocumentType {
+  W9
+  INSURANCE_CERTIFICATE
+  LICENSE
+  CONTRACT
+  OTHER
+}
+
+enum ChangeOrderStatus {
+  DRAFT
+  PENDING_SIGNATURE
+  SIGNED
+  REJECTED
+  CANCELLED
+}
+
+enum LienWaiverType {
+  CONDITIONAL_PARTIAL
+  UNCONDITIONAL_PARTIAL
+  CONDITIONAL_FINAL
+  UNCONDITIONAL_FINAL
+}
+
+enum LienWaiverStatus {
+  PENDING
+  SENT
+  SIGNED
+  REJECTED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          Role      @default(SUBCONTRACTOR)
+  phone         String?
+  company       String?
+  address       String?
+  taxId         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+
+  ownedProjects      Project[]       @relation("ContractorProjects")
+  managedSubs        ProjectMember[] @relation("ContractorMembers")
+  projectMemberships ProjectMember[] @relation("SubcontractorMembers")
+  invoicesSubmitted  Invoice[]       @relation("SubcontractorInvoices")
+  invoicesReviewed   Invoice[]       @relation("ReviewedInvoices")
+  documentsUploaded  Document[]      @relation("SubcontractorDocuments")
+  changeOrdersSigned ChangeOrder[]   @relation("SubcontractorChangeOrders")
+  lienWaiversSigned  LienWaiver[]    @relation("SubcontractorLienWaivers")
+  paymentsReceived   Payment[]       @relation("SubcontractorPayments")
+  paymentsSent       Payment[]       @relation("ContractorPayments")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Project {
+  id           String    @id @default(cuid())
+  name         String
+  description  String?
+  address      String?
+  startDate    DateTime?
+  endDate      DateTime?
+  budget       Float?
+  contractorId String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  contractor   User            @relation("ContractorProjects", fields: [contractorId], references: [id])
+  members      ProjectMember[]
+  invoices     Invoice[]
+  changeOrders ChangeOrder[]
+  lienWaivers  LienWaiver[]
+}
+
+model ProjectMember {
+  id              String   @id @default(cuid())
+  projectId       String
+  subcontractorId String
+  contractorId    String
+  trade           String?
+  contractAmount  Float?
+  joinedAt        DateTime @default(now())
+
+  project       Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  subcontractor User    @relation("SubcontractorMembers", fields: [subcontractorId], references: [id])
+  contractor    User    @relation("ContractorMembers", fields: [contractorId], references: [id])
+
+  @@unique([projectId, subcontractorId])
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique
+  projectId       String
+  subcontractorId String
+  reviewedById    String?
+  status          InvoiceStatus @default(DRAFT)
+  amount          Float
+  tax             Float         @default(0)
+  totalAmount     Float
+  description     String?
+  workPeriodStart DateTime?
+  workPeriodEnd   DateTime?
+  dueDate         DateTime?
+  notes           String?
+  rejectionReason String?
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  project       Project           @relation(fields: [projectId], references: [id])
+  subcontractor User              @relation("SubcontractorInvoices", fields: [subcontractorId], references: [id])
+  reviewedBy    User?             @relation("ReviewedInvoices", fields: [reviewedById], references: [id])
+  lineItems     InvoiceLineItem[]
+  payments      Payment[]
+  attachments   Document[]        @relation("InvoiceAttachments")
+}
+
+model InvoiceLineItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Float
+  unit        String?
+  unitPrice   Float
+  total       Float
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id                    String        @id @default(cuid())
+  invoiceId             String
+  subcontractorId       String
+  contractorId          String
+  amount                Float
+  status                PaymentStatus @default(PENDING)
+  method                String?
+  stripePaymentIntentId String?
+  stripeTransferId      String?
+  notes                 String?
+  processedAt           DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  invoice       Invoice @relation(fields: [invoiceId], references: [id])
+  subcontractor User    @relation("SubcontractorPayments", fields: [subcontractorId], references: [id])
+  contractor    User    @relation("ContractorPayments", fields: [contractorId], references: [id])
+}
+
+model Document {
+  id            String       @id @default(cuid())
+  userId        String
+  invoiceId     String?
+  changeOrderId String?
+  type          DocumentType
+  name          String
+  fileUrl       String
+  fileSize      Int?
+  mimeType      String?
+  expiresAt     DateTime?
+  alertSentAt   DateTime?
+  isVerified    Boolean      @default(false)
+  notes         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  user        User         @relation("SubcontractorDocuments", fields: [userId], references: [id])
+  invoice     Invoice?     @relation("InvoiceAttachments", fields: [invoiceId], references: [id])
+  changeOrder ChangeOrder? @relation(fields: [changeOrderId], references: [id])
+}
+
+model ChangeOrder {
+  id                  String            @id @default(cuid())
+  orderNumber         String            @unique
+  projectId           String
+  subcontractorId     String
+  status              ChangeOrderStatus @default(DRAFT)
+  title               String
+  description         String?
+  amount              Float
+  reason              String?
+  signatureData       String?           @db.Text
+  signedAt            DateTime?
+  contractorSignature String?           @db.Text
+  contractorSignedAt  DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  project       Project    @relation(fields: [projectId], references: [id])
+  subcontractor User       @relation("SubcontractorChangeOrders", fields: [subcontractorId], references: [id])
+  attachments   Document[]
+}
+
+model LienWaiver {
+  id              String           @id @default(cuid())
+  projectId       String
+  subcontractorId String
+  type            LienWaiverType
+  status          LienWaiverStatus @default(PENDING)
+  throughDate     DateTime?
+  amount          Float?
+  signatureData   String?          @db.Text
+  signedAt        DateTime?
+  sentAt          DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  project       Project @relation(fields: [projectId], references: [id])
+  subcontractor User    @relation("SubcontractorLienWaivers", fields: [subcontractorId], references: [id])
+}
+
+model QuickBooksConnection {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  realmId      String
+  accessToken  String   @db.Text
+  refreshToken String   @db.Text
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
