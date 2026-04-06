@@ -6,9 +6,6 @@ const nextConfig: NextConfig = {
     // asChild props on @base-ui/react components cause TS errors but work fine at runtime
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   // Fix: prevent Next.js from using ~/package.json as workspace root (there is a
   // package.json in the home directory that confuses Next.js workspace detection).
   outputFileTracingRoot: path.join(__dirname),
