@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Email already in use" }, { status: 400 });
     }
 
-    const hashed = await bcrypt.hash(password, 12);
+    const hashed = await bcrypt.hash(password, 10);
 
     const user = await prisma.user.create({
       data: {
@@ -32,7 +32,8 @@ export async function POST(request: NextRequest) {
     });
 
     return Response.json({ id: user.id }, { status: 201 });
-  } catch {
+  } catch (err) {
+    console.error("[register] error:", err);
     return Response.json({ error: "Internal server error" }, { status: 500 });
   }
 }
