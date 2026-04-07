@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
   // Fix: next-auth@5 beta / @auth/core are ESM-only; bundling them through webpack
   // causes "Attempted import error" for namespace re-exports. Marking as external
   // lets Node.js load them natively at runtime.
-  serverExternalPackages: ["next-auth", "@auth/core", "stripe", "@prisma/client", "@prisma/adapter-pg", "pg"],
+  serverExternalPackages: ["next-auth", "@auth/core", "stripe", "@prisma/adapter-pg", "pg"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "*.public.blob.vercel-storage.com" },
