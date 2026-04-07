@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     });
     if (!project) return Response.json({ error: "Project not found" }, { status: 404 });
 
-    const subcontractor = await prisma.user.findUnique({
+    const subcontractor = await prisma.user.findFirst({
       where: { email, role: "SUBCONTRACTOR" },
     });
     if (!subcontractor) {
