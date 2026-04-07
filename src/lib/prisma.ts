@@ -1,12 +1,17 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
+// Supabase uses a self-signed cert chain; disable strict verification at runtime.
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
 function createPrismaClient() {
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+  const adapter = new PrismaPg({
+    connectionString: process.env.DATABASE_URL!,
+  });
   return new PrismaClient({ adapter });
 }
 
